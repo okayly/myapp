@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<link rel='stylesheet' href='/stylesheets/mail.css' />
+	<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+
+	<title><%= title %></title>
+	<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  	<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  	<script>
+		$(document).ready(function() {
+			$( ".item" ).toggle( "fold", 1 );
+		});
+	</script>
+
+</head>
+<body>
+	<div class="item"></div>
+	<div id="jb-container">
+		<div id="jb-header">
+			<h1><%= title %></h1>
+			<div>UUID : <%= uuid %><br>우편 수 : <%= mail_count %></div>
+		</div>
+		<div id="jb-content">
+			<% include ../functions %>
+
+			<div id="table">
+			<%
+				for ( var cnt = 0; cnt < mail_list.length; ++cnt ) {
+					var mail = mail_list[cnt].dataValues;
+			%>
+				<div class="group">
+					<div class="row" id="<%= mail.MAIL_ID %>">
+						<span class="cell col">
+							MAIL ID : <%= mail.MAIL_ID %><br>
+							SENDER : <%= mail.MAIL_SENDER %><br>
+							SUBJECT : <%= mail.MAIL_SUBJECT %><br>
+							RECV : <%= moment().format('YYYY-MM-DD HH:mm:ss', mail.REG_DATE); %><br>
+							READ : <%= ( mail.MAIL_READ_DATE != null ) ? moment().format('YYYY-MM-DD HH:mm:ss', mail.MAIL_READ_DATE) : 'Unread'; %>
+						</span>
+						<section class="cell col flat"><button>OPEN</button></section>
+						<div class="item" id="body_<%= mail.MAIL_ID %>">
+							우편 타입 : <%= mail.MAIL_TYPE %><br><br>
+							내용<br>
+							- <%= mail.MAIL_CONTENTS %><br><br>
+							<!-- (BT_C_LOCALIZATION 테이블 BT_MAIL_REWARD_TEXT 탭) -->
+							MailStringID : <%= mail.MAIL_STRING_ID %><br>
+							MailString Value : <%= mail.MAIL_STRING_VALUE_LIST %><br><br>
+							메일 아이콘 : <%= getRewardType(mail.MAIL_ICON_TYPE) %>
+							<%= mail.MAIL_ICON_ITEM_ID %>
+							<%= mail.MAIL_ICON_COUNT %><br><br>
+							첨부 1 : <%= getRewardType(mail.REWARD1_TYPE) %>
+							<%= mail.REWARD1_ITEM_ID %>
+							<%= mail.REWARD1_COUNT %><br><br>
+							첨부 2 : <%= getRewardType(mail.REWARD2_TYPE) %>
+							<%= mail.REWARD2_ITEM_ID %>
+							<%= mail.REWARD2_COUNT %><br><br>
+							첨부 3 : <%= getRewardType(mail.REWARD3_TYPE) %>
+							<%= mail.REWARD3_ITEM_ID %>
+							<%= mail.REWARD3_COUNT %><br><br>
+							첨부 4 : <%= getRewardType(mail.REWARD4_TYPE) %>
+							<%= mail.REWARD4_ITEM_ID %>
+							<%= mail.REWARD4_COUNT %><br><br>
+							첨부 5 : <%= getRewardType(mail.REWARD5_TYPE) %>
+							<%= mail.REWARD5_ITEM_ID %>
+							<%= mail.REWARD5_COUNT %>
+						</div>
+					</div>
+				</div>
+			<%
+				}
+			%>
+			</div>
+		</div>
+		<script>
+			$( "button" ).click(function() {
+				var mail_id = $(this).closest('.row').attr('id');
+				console.log('MAIL_ID', mail_id);
+
+			  $( "#body_" + mail_id ).toggle( "fold", 500 );
+			});
+		</script>
+		<div id="jb-footer">
+		</div>
+	</div>
+</body>

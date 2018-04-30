@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title><%= title %></title>
+	<link rel='stylesheet' href='/stylesheets/style.css' />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script>
+	<script  src="http://code.jquery.com/jquery-latest.min.js"></script>
+
+	<script type="text/javascript">
+		var socket = undefined;
+		var global_packet_srl = 0;
+
+		function Reqlog(p_cmd, p_packet) {
+			console.log(p_cmd, JSON.stringify(p_packet));
+		}
+
+		function Acklog(p_packet) {
+			console.log('Ack -', p_packet);
+		}
+
+		function CheckAccount() {
+			var account = $('#ReqDuckAccount > #account').val();
+			if (account == 0 || account == NaN || account == '') {
+				alert('계정 입력');
+				$('#ReqDuckAccount > #account').focus();
+				return false;
+			}
+			return true;
+		}
+
+		function Connect(p_port) {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+			
+			console.log('port', p_port);
+			socket = io.connect('http://172.20.70.61:' + p_port, {'forceNew': true});
+
+			socket.on('connect', function() { console.log('connected server...'); });
+			socket.on('disconnect', function(recv) { console.log('disconnect server...', recv); });
+			socket.on('RecvError', function(recv) { console.log(recv); });
+			socket.on('evt_notice', function(recv) { console.log(recv); });
+
+			// recv - duck
+			socket.on('AckLogon', function(recv_packet) {
+				Acklog(recv_packet);
+
+				var recv = JSON.parse(recv_packet);
+				$('#uuid, div').val(recv.uuid);
+
+				// ReqUser
+				var send_packet = function() { 
+					this.uuid;
+					this.packet_srl;
+				}
+				var send = new send_packet();
+				send.uuid = recv.uuid;
+				send.packet_srl = global_packet_srl++;
+
+				socket.emit('ReqUser', JSON.stringify(send));
+			});
+
+			socket.on('AckUser', function(recv_packet) {
+			 	Acklog(recv_packet);
+			 	$('#ReqLogon > #output').html(recv_packet);
+
+			 	var recv = JSON.parse(recv_packet);
+
+				// ReqUser
+				var send_packet = function() { 
+					this.uuid;
+					this.packet_srl;
+				}
+				var send = new send_packet();
+				send.uuid = recv.uuid;
+				send.packet_srl = global_packet_srl++;
+
+				socket.emit('ReqHeroBases', JSON.stringify(send));
+			 });
+
+			socket.on('AckDuckAccount', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckHeroBases', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckBattleStart', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckBattleFinish', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckBattleSweep', function(recv_packet) { Acklog(recv_packet); });
+
+			socket.on('AckChallengeStart', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckChallengeFinish', function(recv_packet) { Acklog(recv_packet); });
+			socket.on('AckChallengeSweep', function(recv_packet) { Acklog(recv_packet); });
+		}
+
+		function Disconnect() {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+		}
+
+		// send
+		$(document).ready(function() {
+			// Design 서버에 로그인
+			Connect(2016);
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #connect').click(function() {
+				var port = $('#ConnectServer > #port').val();
+				Connect(port);
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #disconnect').click(function() {
+				Disconnect();
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqLogon > #Send').click(function() {
+				var packet = function() {
+					this.account;
+					this.packet_srl;
+				}
+
+				var send = new packet();
+				send.packet_srl = global_packet_srl++;
+
+				send.account = $('#ReqLogon > #account').val();
+				Reqlog(send);
+
+				socket.emit('ReqLogon', JSON.stringify(send));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqBattleStart > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqBattleStart', $('#ReqDuckAccount > #account'), $('#ReqBattleStart > #chapter_id'), $('#ReqBattleStart > #stage_id'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqBattleFinish > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqBattleFinish', $('#ReqDuckAccount > #account'), $('#ReqBattleFinish > #clear_grade'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqBattleSweep > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqBattleSweep', $('#ReqDuckAccount > #account'), $('#ReqBattleSweep > #chapter_id'), $('#ReqBattleSweep > #stage_id'), $('#ReqBattleSweep > #sweep_count'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqChallengeStart > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				
+				var TeamInfo = function() {
+					this.game_mode;
+					this.slot_hero_ids = [];
+					this.tag_slot_hero_ids = [];
+				}
+
+				var Packet = function() {
+					this.packet_srl;
+					this.challenge_chapter_id;
+					this.challenge_stage_id;
+					this.team_info = new TeamInfo();
+				}
+
+				var send = new Packet();
+				var team = new TeamInfo();
+
+				send.packet_srl = global_packet_srl++;
+
+				send.challenge_chapter_id = $('#ReqChallengeStart > #challenge_chapter_id').val();
+				send.challenge_stage_id = $('#ReqChallengeStart > #challenge_stage_id').val();
+				send.team_info.game_mode = $('#ReqChallengeStart > #game_mode').val();
+
+				send.team_info.slot_hero_ids.push(14);
+				send.team_info.slot_hero_ids.push(7);
+				send.team_info.slot_hero_ids.push(3);
+				send.team_info.slot_hero_ids.push(6);
+				send.team_info.slot_hero_ids.push(4);
+				send.team_info.slot_hero_ids.push(0);
+				
+				send.team_info.tag_slot_hero_ids.push(0);
+				send.team_info.tag_slot_hero_ids.push(0);
+				send.team_info.tag_slot_hero_ids.push(0);
+
+				Reqlog('ReqChallengeStart', send);
+				
+				socket.emit('ReqChallengeStart', JSON.stringify(send));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqChallengeFinish > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqChallengeFinish', $('#ReqDuckAccount > #account'), $('#ReqChallengeFinish > #challenge_chapter_id'), $('#ReqChallengeFinish > #challenge_stage_id'), $('#ReqChallengeFinish > #clear_grade'), $('#ReqChallengeFinish > #game_mode'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqChallengeSweep > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqChallengeSweep', $('#ReqDuckAccount > #account'), $('#ReqChallengeSweep > #challenge_chapter_id'), $('#ReqChallengeSweep > #challenge_stage_id'));
+			});
+		});
+
+		function SendPacket(p_cmd) {
+			var packet = new Object();
+			packet['packet_srl'] = global_packet_srl++;
+
+			for (var cnt = 1; cnt < arguments.length; ++cnt)
+				packet[arguments[cnt].attr('id')] = arguments[cnt].val();
+
+			Reqlog(p_cmd, packet);
+			socket.emit(p_cmd, JSON.stringify(packet));
+		}
+	</script>
+
+	<script type="text/javascript">
+	</script>
+</head>
+	<body>
+		<h1><%= title %></h1>
+		<h1>
+			<a href="/account">ACCOUNT</a>
+			<a href="/hero">HERO</a>
+			<a href="/item">ITEM</a>
+			<a href="/stage">STAGE</a>
+			<a href="/mail">MAIL</a>
+			<a href="/battle">BATTLE</a>
+		</h1>
+		<div id="ConnectServer">
+			GameServerPort: <select id="port">
+				<option value="2016">Design</option>
+				<option value="7953">JW</option>
+				<option value="7952">JW_Test</option>
+				<!-- <option value="3000">Contents</option>
+				<option value="4634">Build</option> -->
+			</select>
+			<input type="button" id="connect" value="Connect"/>
+			<input type="button" id="disconnect" value="Diconnect"/>
+		</div>
+		<br/>
+		<div id="ReqLogon">
+			로그온 <input type="text" id="account" size="10" placeholder="account" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<h2>시나리오 배틀</h2>
+		<div id="ReqBattleStart">
+			시나리오 배틀 시작<br/>
+			챕터 ID : 
+			<select id="chapter_id">
+				<option value="101">101</option><option value="102">102</option><option value="201">201</option>
+			</select>
+			스테이지 ID : 
+			<select id="stage_id">
+				<option value="10101">10101</option><option value="10202">10202</option><option value="20101">20101</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+		<div id="ReqBattleFinish">
+			시나리오 배틀 종료</br>
+			클리어 등급 : 
+			<select id="clear_grade">
+				<option value="3">☆☆☆</option><option value="2">☆☆</option><option value="1">☆</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+		<div id="ReqBattleSweep">
+			시나리오 배틀 소탕</br>
+			챕터 ID : 
+			<select id="chapter_id">
+				<option value="101">101</option><option value="102">102</option><option value="201">201</option>
+			</select>
+			스테이지 ID : 
+			<select id="stage_id">
+				<option value="10101">10101</option><option value="10202">10202</option><option value="20101">20101</option>
+			</select>
+			소탕 횟수 :
+			<select id="sweep_count">
+				<option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+		<h2>도전 배틀</h2>
+		<div id="ReqChallengeStart">
+			도전 배틀 시작<br/>
+			도전 챕터 ID : 
+			<select id="challenge_chapter_id">
+				<option value="501">501</option>
+				<option value="502">502</option>
+				<option value="601">601</option>
+				<option value="602">602</option>
+				<option value="603">603</option>
+				<option value="700">700</option>
+			</select>
+			도전 스테이지 ID :
+			<select id="challenge_stage_id">
+				<option value="50101">50101</option>
+				<option value="50201">50201</option>
+				<option value="60101">60101</option>
+			</select>
+			게임 모드 :
+			<select id="game_mode">
+				<option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+		<div id="ReqChallengeFinish">
+			도전 배틀 종료</br>
+			도전 챕터 ID : 
+			<select id="challenge_chapter_id">
+				<option value="501">501</option>
+				<option value="502">502</option>
+				<option value="601">601</option>
+				<option value="602">602</option>
+				<option value="603">603</option>
+				<option value="700">700</option>
+			</select>
+			도전 스테이지 ID :
+			<select id="challenge_stage_id">
+				<option value="50101">50101</option>
+				<option value="50201">50201</option>
+				<option value="60101">60101</option>
+			</select>
+			게임 모드 :
+			<select id="game_mode">
+				<option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+			</select>
+			클리어 등급 : 
+			<select id="clear_grade">
+				<option value="3">☆☆☆</option><option value="2">☆☆</option><option value="1">☆</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+		<div id="ReqChallengeSweep">
+			도전 배틀 소탕</br>
+			도전 챕터 ID : 
+			<select id="challenge_chapter_id">
+				<option value="501">501</option>
+				<option value="502">502</option>
+				<option value="601">601</option>
+				<option value="602">602</option>
+				<option value="603">603</option>
+				<option value="700">700</option>
+			</select>
+			도전 스테이지 ID :
+			<select id="challenge_stage_id">
+				<option value="50101">50101</option>
+				<option value="50201">50201</option>
+				<option value="60101">60101</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div><br/>
+	</body>
+</html>

@@ -1,0 +1,22 @@
+<%
+getRewardType = function(p_type) {
+	type = '없음';
+
+	switch (p_type) {
+		case 0 : type = '없음';				break;
+		case 1 : type = '아이템';			break;
+		case 2 : type = 'Gold';				break;
+		case 3 : type = 'Cash';				break;
+		case 4 : type = 'HonorPoint';		break;
+		case 5 : type = 'AlliancePoint';	break;
+		case 6 : type = 'ChallengePoint';	break;
+		case 7 : type = 'Stamina';			break;
+	}
+
+	return type;
+}
+
+isRead = function(p_read) {
+	return ( p_read == true ) ? '읽음' : '읽지 않음';
+}
+%>

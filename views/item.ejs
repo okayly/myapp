@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title><%= title %></title>
+	<link rel='stylesheet' href='/stylesheets/style.css' />
+	<!-- script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script>
+	<script  src="http://code.jquery.com/jquery-latest.min.js"></script>
+
+	<script type="text/javascript">
+		var socket = undefined;
+
+		function Reqlog(p_cmd, p_packet) {
+			console.log(p_cmd, JSON.stringify(p_packet));
+		}
+
+		function Acklog(p_packet) {
+			console.log('Ack -', p_packet);
+		}
+
+		function CheckAccount() {
+			var account = $('#ReqDuckAccount > #account').val();
+			if (account == 0 || account == NaN || account == '') {
+				alert('계정 입력');
+				$('#ReqDuckAccount > #account').focus();
+				return false;
+			}
+			return true;
+		}
+
+		function Connect(p_type, p_port) {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+			
+			console.log('type : %s, port : %d', p_type, p_port);
+			let ip = 'http://172.20.70.61:';
+
+			if ( p_type == 'OUT' )
+				ip = 'http://52.78.25.165:';
+			
+			socket = io.connect(ip + p_port, { 'forceNew': true });
+
+			socket.on('connect', function() { console.log('connected server...'); });
+			socket.on('disconnect', function(recv) { console.log('disconnect server...', recv); });
+			socket.on('RecvError', function(recv) { console.log(recv); });
+			socket.on('evt_notice', function(recv) { console.log(recv); });
+
+			// recv - duck
+			socket.on('AckDuckAccount', function(recv) { Acklog(recv); });
+			socket.on('AckDuckItemLevel', function(recv) { Acklog(recv); });
+			socket.on('AckDuckItemPromotion', function(recv) { Acklog(recv); });
+			socket.on('AckDuckItemEvolution', function(recv) { Acklog(recv); });
+			socket.on('AckDuckInventory', function(recv) { Acklog(recv); });
+		}
+
+		function Disconnect() {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+		}
+
+		// send
+		$(document).ready(function() {
+			// Design 서버에 로그인
+			Connect('IN', 2016);
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #connect').click(function() {
+				var server_type = $('#Server > #server_type').val();
+				var server_port = $('#ConnectServer > #server_port').val();
+
+				Connect(server_type, server_port);
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #disconnect').click(function() {
+				Disconnect();
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckAccount > #Send').click(function() {
+				var packet = function() {
+					this.account;
+				};
+
+				var send = new packet();
+				send.account = $('#ReqDuckAccount > #account').val();
+				Reqlog('ReqDuckAccount', send);
+
+				socket.emit('ReqDuckAccount', JSON.stringify(send));
+			});
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckItemLevel > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckItemLevel', $('#ReqDuckAccount > #account'), $('#ReqDuckItemLevel > #item_level'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckItemPromotion > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckItemPromotion', $('#ReqDuckAccount > #account'), $('#ReqDuckItemPromotion > #promotion_step'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckItemEvolution > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckItemEvolution', $('#ReqDuckAccount > #account'), $('#ReqDuckItemEvolution > #evolution_step'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckCreateItemOne > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckCreateItemOne', $('#ReqDuckAccount > #account'), $('#ReqDuckCreateItemOne > #item_id'), $('#ReqDuckCreateItemOne > #item_count'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckCreateItemCategory > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckCreateItemCategory', $('#ReqDuckAccount > #account'), $('#ReqDuckCreateItemCategory > #item_category1'), $('#ReqDuckCreateItemCategory > #item_count'));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckCreateItemAll > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckCreateItemAll', $('#ReqDuckAccount > #account'), $('#ReqDuckCreateItemAll > #item_count'));
+			});
+		});
+
+		function SendPacket(p_cmd) {
+			var packet = new Object();
+			for (var cnt = 1; cnt < arguments.length; ++cnt)
+				packet[arguments[cnt].attr('id')] = arguments[cnt].val();
+
+			Reqlog(p_cmd, packet);
+			socket.emit(p_cmd, JSON.stringify(packet));
+		}
+	</script>
+
+	<script type="text/javascript">
+	</script>
+</head>
+	<body>
+		<h1><%= title %></h1>
+		<h1>
+			<a href="/account">ACCOUNT</a>
+			<a href="/hero">HERO</a>
+			<a href="/item">ITEM</a>
+			<a href="/stage">STAGE</a>
+			<a href="/mail">MAIL</a>
+		</h1>
+		<div id="Server">
+			ServerType: <select id="server_type">
+				<option value="IN">내부 서버</option>
+				<option value="OUT">외부 서버</option>
+			</select>
+			<input type="button" id="type" value="Type"/>
+		</div>
+		<div id="ConnectServer">
+			ServerPort: <select id="server_port">
+				<option value="7953">JW</option>
+				<option value="2016">Design</option>				
+				<option value="7952">JW_Test</option>
+				<option value="3000">Contents</option>
+				<option value="7953">AWS</option>
+			</select>
+			<input type="button" id="connect" value="Connect"/>
+			<input type="button" id="disconnect" value="Diconnect"/>
+		</div>
+		<br/>
+		<div id="ReqDuckAccount">
+			계정확인 <input type="text" id="account" size="10" placeholder="account" />
+			<input type="button" id="Send" value="Confirm" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckItemLevel">
+			보유 영웅 장착 아이템 레벨 <input type="text" id="item_level" size="10" placeholder="item_level" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckItemPromotion">
+			보유 영웅 장착 아이템 승급 단계 <input type="text" id="promotion_step" size="10" placeholder="promotion_step" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckItemEvolution">
+			보유 영웅 장착 아이템 진화 단계 <input type="text" id="evolution_step" size="10" placeholder="evolution_step" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckCreateItemOne">
+			*소비 아이템은 아이템 수를 바꿔 버린다.<br/>
+			*장비 아이템은 아이템 수만큼 새로 만든다.<br/><br/>
+			아이템 생성(한종류) 아이템 ID<input type="text" id="item_id" size="10" placeholder="item_id" />
+			아이템 수<input type="text" id="item_count" size="10" placeholder="item_count" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckCreateItemCategory">
+			아이템 생성(대분류) 아이템 ID<select id="item_category1">
+				<option value="1">소비</option>
+				<option value="2">장비</option>
+			</select>
+			아이템 수<input type="text" id="item_count" size="10" placeholder="item_count" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckCreateItemAll">
+			아이템 생성(전체) 아이템 수<input type="text" id="item_count" size="10" placeholder="item_count" />
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+	</body>
+</html>

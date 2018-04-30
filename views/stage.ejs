@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title><%= title %></title>
+	<link rel='stylesheet' href='/stylesheets/style.css' />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script>
+	<script  src="http://code.jquery.com/jquery-latest.min.js"></script>
+
+	<script type="text/javascript">
+		var socket = undefined;
+
+		function Reqlog(p_cmd, p_packet) {
+			console.log(p_cmd, JSON.stringify(p_packet));
+		}
+
+		function Acklog(p_packet) {
+			console.log('Ack -', p_packet);
+		}
+
+		function CheckAccount() {
+			var account = $('#ReqDuckAccount > #account').val();
+			if (account == 0 || account == NaN || account == '') {
+				alert('계정 입력');
+				$('#ReqDuckAccount > #account').focus();
+				return false;
+			}
+			return true;
+		}
+
+		function Connect(p_type, p_port) {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+			
+			console.log('type : %s, port : %d', p_type, p_port);
+			let ip = 'http://172.20.70.61:';
+
+			if ( p_type == 'OUT' )
+				ip = 'http://52.78.25.165:';
+			
+			socket = io.connect(ip + p_port, { 'forceNew': true });
+
+			socket.on('connect', function() { console.log('connected server...'); });
+			socket.on('disconnect', function(recv) { console.log('disconnect server...', recv); });
+			socket.on('RecvError', function(recv) { console.log(recv); });
+			socket.on('evt_notice', function(recv) { console.log(recv); });
+
+			// recv - duck
+			socket.on('AckDuckStageClear', function(recv) { Acklog(recv); });
+		}
+
+		function Disconnect() {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+		}
+
+		// send
+		$(document).ready(function() {
+			// Design 서버에 로그인
+			Connect('IN', 2016);
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #connect').click(function() {
+				var server_type = $('#Server > #server_type').val();
+				var server_port = $('#ConnectServer > #server_port').val();
+
+				Connect(server_type, server_port);
+			});
+
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #disconnect').click(function() {
+				Disconnect();
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckAccount > #Send').click(function() {
+				var packet = function() {
+					this.account;
+				};
+
+				var send = new packet();
+				send.account = $('#ReqDuckAccount > #account').val();
+				Reqlog('ReqDuckAccount', send);
+
+				socket.emit('ReqDuckAccount', JSON.stringify(send));
+			});
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckStageClear > #Send').click(function() {
+				if (CheckAccount() == false) return;
+				SendPacket('ReqDuckStageClear', $('#ReqDuckAccount > #account'), $('#ReqDuckStageClear > #stage_id'), $('#ReqDuckStageClear > #clear_grade'));
+			});
+		});
+
+		function SendPacket(p_cmd) {
+			var packet = new Object();
+			for (var cnt = 1; cnt < arguments.length; ++cnt)
+				packet[arguments[cnt].attr('id')] = arguments[cnt].val();
+
+			Reqlog(p_cmd, packet);
+			socket.emit(p_cmd, JSON.stringify(packet));
+		}
+	</script>
+
+	<script type="text/javascript">
+	</script>
+</head>
+	<body>
+		<h1><%= title %></h1>
+		<h1>
+			<a href="/account">ACCOUNT</a>
+			<a href="/hero">HERO</a>
+			<a href="/item">ITEM</a>
+			<a href="/stage">STAGE</a>
+			<a href="/mail">MAIL</a>
+		</h1>
+		<div id="Server">
+			ServerType: <select id="server_type">
+				<option value="IN">내부 서버</option>
+				<option value="OUT">외부 서버</option>
+			</select>
+			<input type="button" id="type" value="Type"/>
+		</div>
+		<div id="ConnectServer">
+			ServerPort: <select id="server_port">
+				<option value="2016">Design</option>
+				<option value="7953">JW</option>
+				<option value="7952">JW_Test</option>
+				<option value="3000">Contents</option>
+				<option value="7953">AWS</option>
+			</select>
+			<input type="button" id="connect" value="Connect"/>
+			<input type="button" id="disconnect" value="Diconnect"/>
+		</div>
+		<br/>
+		<div id="ReqDuckAccount">
+			계정확인 <input type="text" id="account" size="10" placeholder="account" />
+			<input type="button" id="Send" value="Confirm" /><div id="output"></div>
+		</div>
+		<br/>
+		<div id="ReqDuckStageClear">
+			스테이지 클리어(시나리오)<br/>
+			<input type="text" id="stage_id" size="10" placeholder="stage_id" />
+			<!-- <select id="stage_id">
+				<option value="10101">10101</option><option value="10202">10202</option><option value="20101">20101</option>
+			</select> -->
+			클리어 등급<select id="clear_grade">
+				<option value="3">☆☆☆</option>
+				<option value="2">☆☆</option>
+				<option value="1">☆</option>
+			</select>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+	</body>
+</html>

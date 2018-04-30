@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title><%= title %></title>
+	<link rel='stylesheet' href='/stylesheets/style.css' />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script>
+	<script  src="http://code.jquery.com/jquery-latest.min.js"></script>
+
+	<script type="text/javascript">
+		var socket = undefined;
+		var global_packet_srl = 0;
+
+		function Reqlog(p_cmd, p_packet) {
+			console.log(p_cmd, JSON.stringify(p_packet));
+		}
+
+		function Acklog(p_packet) {
+			console.log('Ack -', p_packet);
+		}
+
+		function CheckAccount() {
+			var account = $('#ReqDuckAccount > #account').val();
+			if (account == 0 || account == NaN || account == '') {
+				alert('계정 입력');
+				$('#ReqDuckAccount > #account').focus();
+				return false;
+			}
+			return true;
+		}
+
+		function Connect(p_port) {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+			
+			console.log('port', p_port);
+			socket = io.connect('http://172.20.70.61:' + p_port, {'forceNew': true});
+
+			socket.on('connect', function() { console.log('connected server...'); });
+			socket.on('disconnect', function(recv) { console.log('disconnect server...', recv); });
+			socket.on('RecvError', function(recv) { console.log(recv); });
+			socket.on('evt_notice', function(recv) { console.log(recv); });
+
+			// recv - duck
+			socket.on('AckDuckSendMail', function(recv) { Acklog(recv); });
+		}
+
+		function Disconnect() {
+			if (typeof socket != 'undefined')
+				socket.disconnect();
+		}
+
+		// send
+		$(document).ready(function() {
+			// Design 서버에 로그인
+			Connect(2016);
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #connect').click(function() {
+				var port = $('#ConnectServer > #port').val();
+				Connect(port);
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ConnectServer > #disconnect').click(function() {
+				Disconnect();
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckAccount > #Send').click(function() {
+				var packet = function() {
+					this.account;
+				};
+
+				var send = new packet();
+				send.account = $('#ReqDuckAccount > #account').val();
+				Reqlog('ReqDuckAccount', send);
+
+				socket.emit('ReqDuckAccount', JSON.stringify(send));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#MailList > #Send').click(function() {
+				// POST 방식
+				var popUrl = "./popup/mail_list";
+				var popOption = "width=1026, height=768, resizable=yes, scrollbars=yes, status=yes;";
+
+				var name = "popupView";
+
+				var form = document.createElement("form");
+				form.setAttribute("method", "get");
+				form.setAttribute("action", popUrl);
+				form.setAttribute("target", name);
+
+				var input = document.createElement('input');
+				input.type = 'hidden';
+				input.name = 'uuid';
+				input.value = GetNumber($('#MailList > #uuid').val());
+				form.appendChild(input);
+
+				document.body.appendChild(form);
+
+				window.open('', name, popOption);
+				
+				form.submit();
+
+				document.body.removeChild(form);
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#UnreadMailList > #Send').click(function() {
+				// GET 방식
+				var name = "popupView";
+				var popUrl = "./popup/unread_mail_list?uuid=" + GetNumber($('#UnreadMailList > #uuid').val());
+				var popOption = "width=1026, height=768, resizable=yes, scrollbars=yes, status=yes;";
+				
+				window.open(popUrl, name, popOption);
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#DeleteMail > #Send').click(function() {
+				// GET 방식
+				var name = "popupView";
+				var popUrl = "./popup/delete_mail?uuid=" + GetNumber($('#DeleteMail > #uuid').val()) + "&kind=list";
+				var popOption = "width=1026, height=768, resizable=yes, scrollbars=yes, status=yes;";
+				
+				window.open(popUrl, name, popOption);
+			});
+			
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckSendMail > #Send').click(function() {
+				if (CheckAccount() == false) {
+					return;
+				}
+
+				var packet = function () {
+					this.packet_srl;
+					this.account;
+					this.sender;
+					this.mail_type;
+					this.subject;
+					this.contents;
+					this.reward_items = [];	// Item array : max 5
+				};
+
+				var RewardItem = function () {
+					this.reward_type;
+					this.reward_item_id;
+					this.reward_count;
+				}
+
+				var send = new packet();
+				send.packet_srl = global_packet_srl++;
+				send.account = $('#ReqDuckAccount > #account').val();
+
+				send.sender = GetNumber($('#sender').val());
+				if (send.sender == 0) {
+					alert('보내는 사람 UUID 오류');
+					$('#ReqMailSend > #sender').focus();
+					return;
+				}
+				send.mail_type = $('input:radio[name=mail_type]:checked').val();
+				send.subject = $('#subject').val();
+				send.contents = $('#contents').val();
+
+				for (var cnt = 0; cnt < 5; ++cnt) {
+					var reward_id = cnt + 1;
+					var reward_item = new RewardItem();
+					reward_item.reward_type		= GetNumber($('#reward_0' + reward_id + '_type').val());
+					reward_item.reward_item_id	= GetNumber($('#reward_0' + reward_id + '_item_id').val());
+
+					if (reward_item.reward_type == 1 && reward_item.reward_item_id == 0) {
+						alert('보상 아이템 ID 오류')
+						$('#ReqMailSend > #reward_0' + reward_id + '_item_id').focus();
+						return;
+					}
+
+					reward_item.reward_count = GetNumber($('#reward_0' + reward_id + '_count').val());
+
+					if (reward_item.reward_type != 0 && reward_item.reward_count == 0) {
+						alert('보상 아이템 수 오류')
+						$('#ReqMailSend > #reward_0' + reward_id + '_count').focus();
+						return;
+					}
+
+					send.reward_items.push(reward_item);
+				}
+
+				Reqlog('ReqDuckSendMail', send);
+
+				socket.emit('ReqDuckSendMail', JSON.stringify(send));
+			});
+
+			//------------------------------------------------------------------------------------------------------------------
+			$('#ReqDuckMailReservation > #Send').click(function() {
+				if (CheckAccount() == false) return;
+
+				var packet = function () {
+					this.packet_srl;
+					this.account;
+					this.uuid;
+					this.sender;
+					this.mail_type;
+					this.mail_icon_type;
+					this.mail_icon_item_id;
+					this.mail_icon_count;
+					this.subject;
+					this.contents;
+					this.reward_items = [];	// Item array : max 5
+				};
+
+				var RewardItem = function () {
+					this.reward_type;
+					this.reward_item_id;
+					this.reward_count;
+				}
+
+				var send = new packet();
+				send.packet_srl = global_packet_srl++;
+				send.account = $('#ReqDuckAccount > #account').val();
+
+				console.log('Here', $('#ReqDuckMailReservation'));
+
+				send.sender = GetNumber($('#ReqDuckMailReservation > input:#sender').val());
+				if (send.sender == 0) {
+					alert('보내는 사람 UUID 오류');
+					$('#ReqDuckMailReservation > #sender').focus();
+					return;
+				}
+				send.mail_type = $('#ReqDuckMailReservation > input:radio[name=mail_type]:checked').val();
+				send.subject = $('#ReqDuckMailReservation > #subject').val();
+				send.contents = $('#ReqDuckMailReservation > #contents').val();
+
+				for (var cnt = 0; cnt < 5; ++cnt) {
+					var reward_id = cnt + 1;
+					var reward_item = new RewardItem();
+					reward_item.reward_type = GetNumber($('#ReqDuckMailReservation > #reward_0' + reward_id + '_type').val());
+					reward_item.reward_item_id = GetNumber($('#ReqDuckMailReservation > #reward_0' + reward_id + '_item_id').val());
+					if (reward_item.reward_type == 1 && reward_item.reward_item_id == 0) {
+						alert('보상 아이템 ID 오류')
+						$('#ReqDuckMailReservation > #reward_0' + reward_id + '_item_id').focus();
+						return;
+					}
+					reward_item.reward_count = GetNumber($('#ReqDuckMailReservation > #reward_0' + reward_id + '_count').val());
+					if (reward_item.reward_type != 0 && reward_item.reward_count == 0) {
+						alert('보상 아이템 수 오류')
+						$('#ReqDuckMailReservation > #reward_0' + reward_id + '_count').focus();
+						return;
+					}
+
+					send.reward_items.push(reward_item);
+				}
+
+				// Reqlog('ReqDuckMailReservation', send);
+
+				// socket.emit('ReqDuckMailReservation', JSON.stringify(send));
+			});
+		});
+
+		function GetNumber(p_obj, p_msg) { return (p_obj != '') ? parseInt(p_obj) : 0; }
+
+		function SendPacket(p_cmd) {
+			var packet = new Object();
+			for (var cnt = 1; cnt < arguments.length; ++cnt)
+				packet[arguments[cnt].attr('id')] = arguments[cnt].val();
+
+			Reqlog(p_cmd, packet);
+			socket.emit(p_cmd, JSON.stringify(packet));
+		}
+	</script>
+
+	<script type="text/javascript">
+	</script>
+</head>
+	<body>
+		<h1><%= title %></h1>
+		<h1>
+			<a href="/account">ACCOUNT</a>
+			<a href="/hero">HERO</a>
+			<a href="/item">ITEM</a>
+			<a href="/stage">STAGE</a>
+			<a href="/mail">MAIL</a>
+			<a href="/mail_reservation">MAIL RESERVATION</a>
+		</h1>
+		<div id="ConnectServer">
+			GameServerPort: <select id="port">
+				<option value="7953">JW</option>
+				<option value="7952">JW_Test</option>
+				<option value="2016">Design</option>
+				<!-- <option value="3000">Contents</option>
+				<option value="4634">Build</option> -->
+			</select>
+			<input type="button" id="connect" value="Connect"/>
+			<input type="button" id="disconnect" value="Diconnect"/>
+		</div>
+		<br/>
+		<div id="ReqDuckAccount">
+			계정확인 <input type="text" id="account" size="10" placeholder="account" />
+			<input type="button" id="Send" value="Confirm" /><div id="output"></div>
+		</div>
+		<br/>
+		<h1>우편</h1>
+		<table>
+			<tr>
+				<td>
+					<div id="MailList">
+						모든 우편
+						UUID : <input type="text" id="uuid" size="10" placeholder="UUID" numberonly="true" />
+						<input type="button" id="Send" value="Send" />
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<div id="UnreadMailList">
+						읽지 않은 우편
+						UUID : <input type="text" id="uuid" size="10" placeholder="UUID" numberonly="true" />
+						<input type="button" id="Send" value="Send" /><div id="output">
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<div id="DeleteMail">
+						우편 삭제
+						UUID : <input type="text" id="uuid" size="10" placeholder="UUID" numberonly="true" />
+						<input type="button" id="Send" value="Send" /><div id="output">
+					</div>
+				</td>
+			</tr>
+		</table>
+		<h1>일반 우편 보내기</h1>
+		<div id="ReqDuckSendMail">
+			<table>
+				<tr>
+					<td>
+						<label>UUID:</label><input type="text" id="uuid" size="10" placeholder="UUID" numberonly="true" />
+						<input type="button" id="Send" value="Send" /><div id="output">
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<label>받는 사람 UUID:</label>
+						<input type="text" id="uuid" size="10" placeholder="UUID" numberonly="true" />
+						<br/>
+						<label>보내는 사람 UUID:</label>
+						<input type="text" id="sender" size="10" placeholder="UUID" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<label>우편 종류:</label>
+						<input type="radio" name="mail_type" id="mail_type" value="TEXT" size="10" />TEXT
+						<input type="radio" name="mail_type" id="mail_type" value="ITEM" size="10" checked />ITEM
+						<!-- <input type="radio" name="type" id="mail_type" value="GM" size="10" />GM
+						<input type="radio" name="type" id="mail_type" value="SYSTEM" size="10" />SYSTEM -->
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<label>우편 제목</label>
+						<input type="text" id="subject" size="10" placeholder="subject" />
+					</td>
+					<td>
+						<label>우편 내용</label>
+						<input type="text" id="contents" size="10" placeholder="contents" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>01.REWARD_TYPE:</label>
+						<select id="reward_01_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_01_item_id" size="10" placeholder="ITEM_ID" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_01_count" size="10" placeholder="COUNT" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>02.REWARD_TYPE:</label>
+						<select id="reward_02_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_02_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_02_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>03.REWARD_TYPE:</label>
+						<select id="reward_03_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_03_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_03_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>04.REWARD_TYPE:</label>
+						<select id="reward_04_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_04_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_04_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>05.REWARD_TYPE:</label>
+						<select id="reward_05_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_05_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_05_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+			</table>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+		<h1>우편 예약</h1>
+		<div id="ReqDuckMailReservation">
+			<table>
+				<tr>
+					<td>
+						<label>보내는 사람 UUID:</label>
+						<input type="text" id="sender" size="10" placeholder="UUID" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<label>우편 종류:</label>
+						<input type="radio" name="mail_type" id="mail_type" value="TEXT" size="10" />TEXT
+						<input type="radio" name="mail_type" id="mail_type" value="ITEM" size="10" checked />ITEM
+						<!-- <input type="radio" name="type" id="mail_type" value="GM" size="10" />GM
+						<input type="radio" name="type" id="mail_type" value="SYSTEM" size="10" />SYSTEM -->
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<label>우편 제목</label>
+						<input type="text" id="subject" size="10" placeholder="subject" />
+					</td>
+					<td>
+						<label>우편 내용</label>
+						<input type="text" id="contents" size="10" placeholder="contents" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>01.REWARD_TYPE:</label>
+						<select id="reward_01_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_01_item_id" size="10" placeholder="ITEM_ID" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_01_count" size="10" placeholder="COUNT" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>02.REWARD_TYPE:</label>
+						<select id="reward_02_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_02_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_02_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>03.REWARD_TYPE:</label>
+						<select id="reward_03_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_03_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_03_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>04.REWARD_TYPE:</label>
+						<select id="reward_04_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_04_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_04_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+				<tr>
+					<td class="tg-yw4l">
+						<label>05.REWARD_TYPE:</label>
+						<select id="reward_05_type">
+							<option value="0" selected>없음</option>
+							<option value="1">아이템</option>
+							<option value="2">GOLD</option>
+							<option value="3">CASH</option>
+							<option value="4">HONOR POINT</option>
+							<option value="5">ALLIANCE POINT</option>
+							<option value="6">CHALLENGE POINT</option>
+						</select>
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_ITEM_ID:</label>
+						<input type="text" id="reward_05_item_id" size="10" placeholder="item_id" numberonly="true" />
+					</td>
+					<td class="tg-yw4l">
+						<label>REWARD_COUNT:</label>
+						<input type="text" id="reward_05_count" size="10" placeholder="count" numberonly="true" />
+					</td>
+				</tr>
+			</table>
+			<input type="button" id="Send" value="Send" /><div id="output"></div>
+		</div>
+	</body>
+</html>
